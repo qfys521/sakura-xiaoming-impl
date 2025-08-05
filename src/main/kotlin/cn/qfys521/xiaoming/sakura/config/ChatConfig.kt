@@ -5,9 +5,9 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class ChatConfig(
     var modelName: String = "qwen-turbo",
-    var temperature: Double = 0.7,
+    var temperature: Float = 0.7f,
     var maxTokens: Int = 4096,
-    var topP: Double = 1.0,
+    var topP: Float = 0.9f,
     var token: String = "",
     var enableSearch: Boolean = true,
 
