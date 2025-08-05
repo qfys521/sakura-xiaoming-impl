@@ -1,0 +1,53 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 获取全部 commit 历史
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Chmod Gradle wrapper
+        run: sudo chmod +x gradlew
+
+      - name: Build with Gradle
+        run: ./gradlew clean build
+
+      - name: Package JAR files
+        run: |
+          tar -czvf jar-files.tar.gz build/libs/*.jar
+
+      - name: Generate release notes
+        id: changelog
+        run: |
+          TAG_NAME="${GITHUB_REF##*/}"
+          PREV_TAG=$(git tag --sort=-creatordate | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -A1 "$TAG_NAME" | tail -n1)
+          if [ -z "$PREV_TAG" ]; then
+            RANGE=$(git rev-list --max-parents=0 HEAD)
+            COMMITS=$(git log --pretty=format:"- %s" $RANGE..$TAG_NAME)
+          else
+            COMMITS=$(git log --pretty=format:"- %s" $PREV_TAG..$TAG_NAME)
+          fi
+          echo "RELEASE_BODY=$(echo -e \"$TAG_NAME Release\n\n$COMMITS\")" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body: ${{ steps.changelog.outputs.RELEASE_BODY }}
+          files: jar-files.tar.gz
