@@ -19,7 +19,7 @@ repositories {
 dependencies {
 
     // xiao-ming bot
-    compileOnly("cn.chuanwise.xiaoming:xiaomingbot:20250101-210305:all")
+    compileOnly(files("libs/xiaomingbot-20250101-210305-all.jar"))
 
     // alibaba dashscope sdk
     implementation("com.alibaba:dashscope-sdk-java:2.21.1")

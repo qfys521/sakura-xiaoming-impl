@@ -154,6 +154,7 @@ object LuckAlgorithm {
         return rfc4226(seed, Base64.getDecoder().decode(key), digits)
     }
 
+    @OptIn(ExperimentalStdlibApi::class)
     fun rfc4226(seed: Long, key: ByteArray, digits: Int): Int {
         var digits = digits
         val seedBytes = byteArrayOf(
