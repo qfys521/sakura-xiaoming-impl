@@ -4,6 +4,7 @@ package cn.qfys521.xiaoming.sakura.command
 
 import cn.chuanwise.xiaoming.annotation.Filter
 import cn.chuanwise.xiaoming.annotation.FilterParameter
+import cn.chuanwise.xiaoming.annotation.Required
 import cn.chuanwise.xiaoming.interactor.SimpleInteractors
 import cn.chuanwise.xiaoming.user.XiaoMingUser
 import cn.qfys521.xiaoming.sakura.PluginMain
@@ -23,8 +24,11 @@ import java.security.NoSuchAlgorithmException
 import java.util.Base64
 import java.util.Calendar
 import java.util.Date
+import java.util.UUID
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
+import top.mrxiaom.overflow.message.data.Markdown
+
 
 class SakuraCommands : SimpleInteractors<PluginMain>() {
 
@@ -44,6 +48,82 @@ class SakuraCommands : SimpleInteractors<PluginMain>() {
         """.trimIndent()
         )
     }
+
+    @Filter("/resetJrrp")
+    @Required("sakura.command.admin.resetJrrp")
+    fun resetJrrp(event: XiaoMingUser<*>) {
+        plugin.jrrpConfig.key = Base64.getEncoder().encodeToString(UUID.randomUUID().toString().toByteArray())
+        event.sendMessage(
+            """
+            
+            |🔑 密钥已重置！
+            |🔄 今日运势重置成功！
+            |新的密钥已生成，请重新运行 /jrrp 获取今日运势。
+        """.trimIndent()
+        )
+    }
+
+    @Filter("/屏蔽-u {r:user}")
+    @Required("sakura.command.admin.ban.user")
+    fun banUser(event: XiaoMingUser<*>, @FilterParameter("user") user: Long) {
+        plugin.essentialsConfig.banedUser += user
+        event.sendMessage(
+            """
+            
+            |🚫 用户 $user 已被屏蔽！
+            |请注意，屏蔽用户后，他们将无法使用任何命令。
+            |如果需要取消屏蔽，请联系管理员。
+        """.trimIndent()
+        )
+
+    }
+
+    @Filter("/markdown {r:markdown}")
+    @Required("sakura.command.admin.markdown")
+    fun markdown(event: XiaoMingUser<*>, @FilterParameter("markdown") markdown: String) {
+        event.sendMessage(Markdown(markdown))
+    }
+
+    @Filter("/屏蔽-g {r:group}")
+    @Required("sakura.command.admin.ban.group")
+    fun banGroup(event: XiaoMingUser<*>, @FilterParameter("group") group: Long) {
+        plugin.essentialsConfig.banedGroup += group
+        event.sendMessage(
+            """
+            |🚫 群组 $group 已被屏蔽！
+            |请注意，屏蔽群组后，所有成员将无法使用任何命令。
+            |如果需要取消屏蔽，请联系管理员。
+        """.trimIndent()
+        )
+    }
+
+
+    @Filter("/unban-u {r:user}")
+    @Required("sakura.command.admin.unban.user")
+    fun unbanUser(event: XiaoMingUser<*>, @FilterParameter("user") user: Long) {
+        plugin.essentialsConfig.banedUser -= user
+        event.sendMessage(
+            """
+            
+            |✅ 用户 $user 已被取消屏蔽！
+            |现在他们可以重新使用所有命令。
+        """.trimIndent()
+        )
+    }
+
+    @Filter("/unban-g {r:group}")
+    @Required("sakura.command.admin.unban.group")
+    fun unbanGroup(event: XiaoMingUser<*>, @FilterParameter("group") group: Long) {
+        plugin.essentialsConfig.banedGroup -= group
+        event.sendMessage(
+            """
+            
+            |✅ 群组 $group 已被取消屏蔽！
+            |现在所有成员可以重新使用所有命令。
+        """.trimIndent()
+        )
+    }
+
 
     @Filter("/chat {r:chat}")
     fun chat(
