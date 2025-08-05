@@ -5,7 +5,7 @@ on:
   push:
     tags:
       - 'v*.*.*'
-
+  workflow_dispatch:
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -43,7 +43,8 @@ jobs:
           else
             COMMITS=$(git log --pretty=format:"- %s" $PREV_TAG..$TAG_NAME)
           fi
-          echo "RELEASE_BODY=$(echo -e \"$TAG_NAME Release\n\n$COMMITS\")" >> $GITHUB_OUTPUT
+          echo -e "${TAG_NAME} Release\n\n${COMMITS}" > release_body.txt
+          echo "RELEASE_BODY=$(cat release_body.txt)" >> $GITHUB_OUTPUT
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
