@@ -25,7 +25,7 @@ jobs:
         run: sudo chmod +x gradlew
 
       - name: Build with Gradle
-        run: ./gradlew clean build
+        run: ./gradlew clean build shadowJar
 
       - name: Upload JAR artifacts
         uses: actions/upload-artifact@v4

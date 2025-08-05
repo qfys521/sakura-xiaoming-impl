@@ -26,7 +26,7 @@ jobs:
         run: sudo chmod +x gradlew
 
       - name: Build with Gradle
-        run: ./gradlew clean build
+        run: ./gradlew clean build shadowJar
 
       - name: Package JAR files
         run: |
