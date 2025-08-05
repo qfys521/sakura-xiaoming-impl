@@ -2,7 +2,7 @@ plugins {
     kotlin("jvm") version "2.2.0"
     id("com.gradleup.shadow") version "9.0.0-rc3"
     id("maven-publish")
-    kotlin("plugin.serialization") version "2.2.0"
+
 }
 
 group = "cn.qfys521"
@@ -25,7 +25,7 @@ dependencies {
     // alibaba dashscope sdk
     implementation("com.alibaba:dashscope-sdk-java:2.21.1")
 
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:2.0.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.9.0")
     testImplementation(kotlin("test"))
 }
 
