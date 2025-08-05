@@ -25,6 +25,7 @@ dependencies {
     // alibaba dashscope sdk
     implementation("com.alibaba:dashscope-sdk-java:2.21.1")
 
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:2.0.0")
     testImplementation(kotlin("test"))
 }
 
