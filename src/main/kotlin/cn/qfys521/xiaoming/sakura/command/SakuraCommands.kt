@@ -50,11 +50,13 @@ class SakuraCommands : SimpleInteractors<PluginMain>() {
         event: XiaoMingUser<*>,
         @FilterParameter("chat") chat: String
     ) {
-        event.sendMessage(
-            """
-            ${callWithMessage(chat)}
-        """.trimIndent()
-        )
+
+        val msg = when (callWithMessage(chat)!!.output.finishReason) {
+            "stop" -> callWithMessage(chat)!!.output.text
+            else -> ""
+        }
+
+        event.sendMessage(msg)
     }
 
 
@@ -76,7 +78,7 @@ class SakuraCommands : SimpleInteractors<PluginMain>() {
     }
 
     @Throws(ApiException::class, NoApiKeyException::class, InputRequiredException::class)
-    fun callWithMessage(context: String): String? {
+    fun callWithMessage(context: String): GenerationResult? {
 
         val gen = Generation()
         val systemMsg0: Message? = Message.builder()
@@ -106,14 +108,14 @@ class SakuraCommands : SimpleInteractors<PluginMain>() {
         clientParams.setParameters(extraParams)
         val results: Flowable<GenerationResult?> = gen.streamCall(clientParams)
         val fullContent = StringBuilder()
-        var msg: String? = null
+        var msg: GenerationResult? = null
 
         results.blockingForEach(Consumer { message: GenerationResult? ->
             handleGenerationResult(
                 message!!,
                 fullContent
             )
-            msg = fullContent.toString()
+            msg = message
         })
         return msg
     }

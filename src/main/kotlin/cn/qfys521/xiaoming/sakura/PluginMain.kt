@@ -6,15 +6,17 @@ import cn.chuanwise.xiaoming.plugin.JavaPlugin
 import cn.qfys521.xiaoming.sakura.command.SakuraCommands
 import cn.qfys521.xiaoming.sakura.config.ChatConfig
 import cn.qfys521.xiaoming.sakura.config.JrrpConfig
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
+import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import java.io.File
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 
 open class PluginMain : JavaPlugin() {
     companion object {
         val INSTANCE = PluginMain()
     }
+
+    private val objectMapper: ObjectMapper = ObjectMapper().registerKotlinModule()
 
     var jrrpConfig: JrrpConfig = JrrpConfig()
         private set
@@ -28,24 +30,25 @@ open class PluginMain : JavaPlugin() {
 
         val dataFolder: File = dataFolder
         dataFolder.mkdirs()
-        val jrrpConfig = File(dataFolder, "jrrp-config.json")
-        val chatConfig = File(dataFolder, "chat-config.json")
+        val jrrpConfigFile = File(dataFolder, "jrrp-config.json")
+        val chatConfigFile = File(dataFolder, "chat-config.json")
 
-        if (!jrrpConfig.exists()) {
+        if (!jrrpConfigFile.exists()) {
             logger.info("JrrpConfig file not found, creating a new one with default values.")
             this@PluginMain.jrrpConfig = JrrpConfig()
-            jrrpConfig.writeText(Json.encodeToString(this@PluginMain.jrrpConfig))
+            objectMapper.writeValue(jrrpConfigFile, this@PluginMain.jrrpConfig)
         } else {
             logger.info("Loading JrrpConfig from file.")
-            this@PluginMain.jrrpConfig = Json.decodeFromString(jrrpConfig.readText())
+            this@PluginMain.jrrpConfig = objectMapper.readValue(jrrpConfigFile)
         }
-        if (!chatConfig.exists()) {
-            logger.info("JrrpConfig file not found, creating a new one with default values.")
+
+        if (!chatConfigFile.exists()) {
+            logger.info("ChatConfig file not found, creating a new one with default values.")
             this@PluginMain.chatConfig = ChatConfig()
-            chatConfig.writeText(Json.encodeToString(Json.encodeToString(this@PluginMain.chatConfig)))
+            objectMapper.writeValue(chatConfigFile, this@PluginMain.chatConfig)
         } else {
             logger.info("Loading ChatConfig from file.")
-            this@PluginMain.chatConfig = Json.decodeFromString(chatConfig.readText())
+            this@PluginMain.chatConfig = objectMapper.readValue(chatConfigFile)
         }
 
         xiaoMingBot.interactorManager.registerInteractors(SakuraCommands(), this@PluginMain)
@@ -55,5 +58,4 @@ open class PluginMain : JavaPlugin() {
         super.onDisable()
         logger.info("Sakura XiaoMing Plugin disabled successfully!")
     }
-
 }

@@ -25,7 +25,10 @@ dependencies {
     // alibaba dashscope sdk
     implementation("com.alibaba:dashscope-sdk-java:2.21.1")
 
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.9.0")
+    // fastjson
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.19.2")
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.19.+")
+
     testImplementation(kotlin("test"))
 }
 

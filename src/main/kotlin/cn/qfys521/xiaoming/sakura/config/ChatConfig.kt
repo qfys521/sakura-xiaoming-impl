@@ -1,14 +1,18 @@
 package cn.qfys521.xiaoming.sakura.config
 
-import kotlinx.serialization.Serializable
+import com.fasterxml.jackson.annotation.JsonProperty
 
-@Serializable
 data class ChatConfig(
+    @field:JsonProperty("modelName")
     var modelName: String = "qwen-turbo",
+    @field:JsonProperty("temperature")
     var temperature: Float = 0.7f,
+    @field:JsonProperty("maxTokens")
     var maxTokens: Int = 4096,
+    @field:JsonProperty("topP")
     var topP: Double = 1.0,
+    @field:JsonProperty("token")
     var token: String = "",
-    var enableSearch: Boolean = true,
-
-    )
+    @field:JsonProperty("enableSearch")
+    var enableSearch: Boolean = true
+)
