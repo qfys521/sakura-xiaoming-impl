@@ -1,9 +1,11 @@
+#file: noinspection UndefinedAction,UndefinedParamsPresent
+
 name: Gradle Build
 
 on:
   push:
     branches:
-      - main
+      - master
 
 jobs:
   build:
