@@ -9,7 +9,11 @@ on:
     inputs:
       tag_name:
         description: 'Tag name for release'
-        required: true
+        required: false
+      commit_hash:
+        description: 'Start commit hash for release notes'
+        required: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -39,17 +43,24 @@ jobs:
       - name: Generate release notes
         id: changelog
         run: |
-          TAG_NAME="${{ github.event.inputs.tag_name || github.ref_name }}"
-          PREV_TAG=$(git tag --sort=-creatordate | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -A1 "$TAG_NAME" | tail -n1)
-          if [ -z "$PREV_TAG" ]; then
-            RANGE=$(git rev-list --max-parents=0 HEAD)
-            COMMITS=$(git log --pretty=format:"- %s" $RANGE..$TAG_NAME)
+          if [ -n "${{ github.event.inputs.commit_hash }}" ]; then
+            RANGE="${{ github.event.inputs.commit_hash }}"
+            COMMITS=$(git log --pretty=format:"- %s" $RANGE..HEAD)
+            TITLE="Release from $RANGE to HEAD"
           else
-            COMMITS=$(git log --pretty=format:"- %s" $PREV_TAG..$TAG_NAME)
+            TAG_NAME="${{ github.event.inputs.tag_name || github.ref_name }}"
+            PREV_TAG=$(git tag --sort=-creatordate | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -A1 "$TAG_NAME" | tail -n1)
+            if [ -z "$PREV_TAG" ]; then
+              RANGE=$(git rev-list --max-parents=0 HEAD)
+              COMMITS=$(git log --pretty=format:"- %s" $RANGE..$TAG_NAME)
+            else
+              COMMITS=$(git log --pretty=format:"- %s" $PREV_TAG..$TAG_NAME)
+            fi
+            TITLE="${TAG_NAME} Release"
           fi
           {
             echo "RELEASE_BODY<<EOF"
-            echo -e "${TAG_NAME} Release\n\n${COMMITS}"
+            echo -e "${TITLE}\n\n${COMMITS}"
             echo "EOF"
           } >> $GITHUB_OUTPUT
 
