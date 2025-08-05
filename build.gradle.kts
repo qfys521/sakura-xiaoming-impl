@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "cn.qfys521"
-version = "v1.0.1"
+version = "v1.0.2"
 
 repositories {
     mavenCentral()
