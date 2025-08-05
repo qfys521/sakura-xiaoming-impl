@@ -6,6 +6,10 @@ on:
     tags:
       - 'v*.*.*'
   workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name for release'
+        required: true
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -35,7 +39,7 @@ jobs:
       - name: Generate release notes
         id: changelog
         run: |
-          TAG_NAME="${GITHUB_REF##*/}"
+          TAG_NAME="${{ github.event.inputs.tag_name || github.ref_name }}"
           PREV_TAG=$(git tag --sort=-creatordate | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -A1 "$TAG_NAME" | tail -n1)
           if [ -z "$PREV_TAG" ]; then
             RANGE=$(git rev-list --max-parents=0 HEAD)
