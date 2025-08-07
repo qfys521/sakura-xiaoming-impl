@@ -1,6 +1,8 @@
 #file: noinspection UndefinedAction,UndefinedParamsPresent
 
 name: Gradle Build
+permissions:
+  contents: read
 
 on:
   push:
