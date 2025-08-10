@@ -13,6 +13,8 @@ data class ChatConfig(
     var topP: Double = 1.0,
     @field:JsonProperty("token")
     var token: String = "",
+    @field:JsonProperty("apiUrl")
+    var apiUrl: String = "https://dashscope.aliyuncs.com/compatible-mode/v1",
     @field:JsonProperty("enableSearch")
     var enableSearch: Boolean = true
 )

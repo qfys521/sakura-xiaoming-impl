@@ -22,12 +22,12 @@ dependencies {
     // xiao-ming bot
     compileOnly(files("libs/xiaomingbot-20250101-210305-all.jar"))
 
-    // alibaba dashscope sdk
-    implementation("com.alibaba:dashscope-sdk-java:2.21.1")
-
-    // fastjson
+    // 使用 Jackson
     implementation("com.fasterxml.jackson.core:jackson-databind:2.19.2")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.19.+")
+
+    // OkHttp 用于 HTTP 调用
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     testImplementation(kotlin("test"))
 }
