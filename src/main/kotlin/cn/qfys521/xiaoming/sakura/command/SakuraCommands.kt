@@ -9,16 +9,14 @@ import cn.chuanwise.xiaoming.interactor.SimpleInteractors
 import cn.chuanwise.xiaoming.user.PrivateXiaoMingUser
 import cn.chuanwise.xiaoming.user.XiaoMingUser
 import cn.qfys521.xiaoming.sakura.PluginMain
-import com.fasterxml.jackson.annotation.JsonInclude
+import cn.qfys521.xiaoming.sakura.config.ChatConfig
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.fasterxml.jackson.module.kotlin.readValue
 import java.security.InvalidKeyException
 import java.security.NoSuchAlgorithmException
 import java.util.Base64
 import java.util.Calendar
 import java.util.Date
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import okhttp3.MediaType.Companion.toMediaType
@@ -123,13 +121,16 @@ class SakuraCommands : SimpleInteractors<PluginMain>() {
 
 
     @Filter("/chat {r:chat}")
+    @Required("sakura.command.admin.chat")
     fun chat(
         event: XiaoMingUser<*>,
         @FilterParameter("chat") chat: String
     ) {
-        val result = callWithMessage(chat)
-        val msg = result?.text ?: ""
-        event.sendMessage(msg)
+        val msg = sendMessage(
+            message = chat,
+            config = plugin.chatConfig
+        )
+        event.sendMessage(msg.ifEmpty { "🤖 未收到回复，请稍后再试。" })
     }
 
     @Filter("/chat.set temperature {r:value}")
@@ -195,21 +196,64 @@ class SakuraCommands : SimpleInteractors<PluginMain>() {
     @Filter("/chat.set apiUrl {r:value}")
     @Required("sakura.command.admin.chat.set.apiUrl")
     fun setApiUrl(event: PrivateXiaoMingUser, @FilterParameter("value") value: String) {
-        val v = value.trim().removeSuffix("/")
-        if (v.isEmpty() || !(v.startsWith("http://") || v.startsWith("https://"))) {
+        if (value.isEmpty() || !(value.startsWith("http://") || value.startsWith("https://"))) {
             event.sendMessage("参数错误：apiUrl 必须以 http:// 或 https:// 开头")
             return
         }
-        plugin.chatConfig.apiUrl = v
-        event.sendMessage("已更新 apiUrl=$v")
+        plugin.chatConfig.apiUrl = value
+        event.sendMessage("已更新 apiUrl=$value")
     }
+
+    val config = plugin.chatConfig
+
+    private val client = OkHttpClient()
+    private val mapper = jacksonObjectMapper()
+    private val mediaType = "application/json".toMediaType()
+
+    /**
+     * @param message 提问的消息
+     * @param config  调用配置
+     * @return api返回的消息
+     **/
+    fun sendMessage(message: String, config: ChatConfig): String {
+        // 构建请求体
+        val payload = mapOf(
+            "model" to config.modelName,
+            "messages" to listOf(
+                mapOf("role" to "user", "content" to message)
+            ),
+            "temperature" to config.temperature,
+            "max_tokens" to config.maxTokens,
+            "top_p" to config.topP
+        )
+
+        val body = mapper.writeValueAsString(payload).toRequestBody(mediaType)
+
+        val request = Request.Builder()
+            .url("${config.apiUrl}/chat/completions")
+            .addHeader("Authorization", "Bearer ${config.token}")
+            .addHeader("Content-Type", "application/json")
+            .post(body)
+            .build()
+
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw RuntimeException("Unexpected code $response")
+            }
+            val json = response.body?.string() ?: ""
+            val root = mapper.readTree(json)
+            // OpenAI 兼容模式返回格式：choices[0].message.content
+            return root["choices"]?.get(0)?.get("message")?.get("content")?.asText() ?: ""
+        }
+    }
+
 
     @Filter("/chat.set enableSearch {r:value}")
     @Required("sakura.command.admin.chat.set.enableSearch")
     fun setEnableSearch(event: PrivateXiaoMingUser, @FilterParameter("value") value: String) {
         val v = when (value.trim().lowercase()) {
-            "true", "1", "yes", "y", "on" -> true
-            "false", "0", "no", "n", "off" -> false
+            "true", "1", "yes", "y", "on", "是", "启用" -> true
+            "false", "0", "no", "n", "off", "否", "关闭" -> false
             else -> {
                 event.sendMessage("参数错误：enableSearch 仅支持 true/false")
                 return
@@ -221,78 +265,18 @@ class SakuraCommands : SimpleInteractors<PluginMain>() {
 
     private fun getJrrpComment(value: Int): String {
         return when (value) {
-            in 90..100 -> "🌟 今天运气爆棚！适合做任何事情！"
-            in 80..89 -> "✨ 运气很不错，可以尝试一些挑战！"
-            in 70..79 -> "😊 运气还可以，保持平常心！"
-            in 60..69 -> "😐 运气一般般，小心行事！"
-            in 50..59 -> "😕 运气不太好，建议低调行事！"
-            in 30..49 -> "😰 运气有点糟糕，今天要谨慎！"
-            in 10..29 -> "💀 运气很差，建议在家躺平！"
+            in 80..100 -> "🌟 今天运气爆棚！适合做任何事情！"
+            in 70..79 -> "✨ 运气很不错，可以尝试一些挑战！"
+            in 50..69 -> "😊 运气还可以，保持平常心！"
+            in 40..49 -> "😐 运气一般般，小心行事！"
+            in 30..39 -> "😕 运气不太好，建议低调行事！"
+            in 20..29 -> "😰 运气有点糟糕，今天要谨慎！"
+            in 1..19 -> "💀 运气很差，建议在家躺平！"
             else -> "🔥 今天千万别出门！"
         }
     }
 
-    private val httpClient by lazy {
-        OkHttpClient.Builder()
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .callTimeout(60, TimeUnit.SECONDS)
-            .build()
-    }
-    private val mapper by lazy {
-        jacksonObjectMapper().also { it.setSerializationInclusion(JsonInclude.Include.NON_NULL) }
-    }
 
-    private data class OAIMsg(val role: String, val content: String)
-    private data class OAIReq(
-        val model: String,
-        val messages: List<OAIMsg>,
-        val temperature: Float? = null,
-        val top_p: Double? = null,
-        val max_tokens: Int? = null,
-        val stream: Boolean = false
-    )
-
-    private data class OAIChoice(val index: Int, val message: OAIMsg?, val finish_reason: String?)
-    private data class OAIResp(val id: String?, val model: String?, val choices: List<OAIChoice> = emptyList())
-    private data class ChatResult(val text: String, val finishReason: String?)
-
-    private fun callWithMessage(context: String): ChatResult? {
-        val apiUrl = plugin.chatConfig.apiUrl.trimEnd('/')
-        val token = plugin.chatConfig.token
-        if (token.isBlank()) return ChatResult("未配置 API Token。", null)
-
-        val systemMsg = OAIMsg(role = "system", content = "你是一只白丝猫耳小萝莉")
-        val userMsg = OAIMsg(role = "user", content = context)
-        val req = OAIReq(
-            model = plugin.chatConfig.modelName,
-            messages = listOf(systemMsg, userMsg),
-            temperature = plugin.chatConfig.temperature,
-            top_p = plugin.chatConfig.topP,
-            max_tokens = plugin.chatConfig.maxTokens,
-            stream = false
-        )
-
-        val json = mapper.writeValueAsString(req)
-        val mediaType = "application/json".toMediaType()
-        val request = Request.Builder()
-            .url("$apiUrl/chat/completions")
-            .addHeader("Content-Type", "application/json")
-            .addHeader("Authorization", "Bearer $token")
-            .post(json.toRequestBody(mediaType))
-            .build()
-
-        httpClient.newCall(request).execute().use { resp ->
-            val bodyStr = resp.body?.string().orElse("")
-            if (!resp.isSuccessful) {
-                return ChatResult("请求失败：HTTP ${resp.code} - $bodyStr", null)
-            }
-            val oaiResp: OAIResp = mapper.readValue(bodyStr)
-            val choice = oaiResp.choices.firstOrNull()
-            val text = choice?.message?.content.orEmpty()
-            val finish = choice?.finish_reason
-            return ChatResult(text, finish)
-        }
-    }
 }
 
 object LuckAlgorithm {
