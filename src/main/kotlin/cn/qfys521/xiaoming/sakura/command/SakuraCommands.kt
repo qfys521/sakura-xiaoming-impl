@@ -9,6 +9,7 @@ import cn.chuanwise.xiaoming.interactor.SimpleInteractors
 import cn.chuanwise.xiaoming.user.PrivateXiaoMingUser
 import cn.chuanwise.xiaoming.user.XiaoMingUser
 import cn.qfys521.xiaoming.sakura.PluginMain
+import cn.qfys521.xiaoming.sakura.PluginMain.Companion.INSTANCE
 import cn.qfys521.xiaoming.sakura.config.ChatConfig
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import java.security.InvalidKeyException
@@ -31,7 +32,7 @@ class SakuraCommands : SimpleInteractors<PluginMain>() {
     @Filter("/今日运势")
     fun jrrp(event: XiaoMingUser<*>) {
         val qq = event.code
-        val key = plugin.jrrpConfig.key
+        val key = INSTANCE.jrrpConfig.key
 
         val luckValue = LuckAlgorithm.get(qq, key)
 
@@ -47,7 +48,7 @@ class SakuraCommands : SimpleInteractors<PluginMain>() {
     @Filter("/resetJrrp")
     @Required("sakura.command.admin.resetJrrp")
     fun resetJrrp(event: XiaoMingUser<*>) {
-        plugin.jrrpConfig.key = Base64.getEncoder().encodeToString(UUID.randomUUID().toString().toByteArray())
+        INSTANCE.jrrpConfig.key = Base64.getEncoder().encodeToString(UUID.randomUUID().toString().toByteArray())
         event.sendMessage(
             """
             
@@ -61,7 +62,7 @@ class SakuraCommands : SimpleInteractors<PluginMain>() {
     @Filter("/屏蔽-u {r:user}")
     @Required("sakura.command.admin.ban.user")
     fun banUser(event: XiaoMingUser<*>, @FilterParameter("user") user: Long) {
-        plugin.essentialsConfig.banedUser += user
+        INSTANCE.essentialsConfig.banedUser += user
         event.sendMessage(
             """
             
@@ -82,7 +83,7 @@ class SakuraCommands : SimpleInteractors<PluginMain>() {
     @Filter("/屏蔽-g {r:group}")
     @Required("sakura.command.admin.ban.group")
     fun banGroup(event: XiaoMingUser<*>, @FilterParameter("group") group: Long) {
-        plugin.essentialsConfig.banedGroup += group
+        INSTANCE.essentialsConfig.banedGroup += group
         event.sendMessage(
             """
             |🚫 群组 $group 已被屏蔽！
@@ -96,7 +97,7 @@ class SakuraCommands : SimpleInteractors<PluginMain>() {
     @Filter("/unban-u {r:user}")
     @Required("sakura.command.admin.unban.user")
     fun unbanUser(event: XiaoMingUser<*>, @FilterParameter("user") user: Long) {
-        plugin.essentialsConfig.banedUser -= user
+        INSTANCE.essentialsConfig.banedUser -= user
         event.sendMessage(
             """
             
@@ -109,7 +110,7 @@ class SakuraCommands : SimpleInteractors<PluginMain>() {
     @Filter("/unban-g {r:group}")
     @Required("sakura.command.admin.unban.group")
     fun unbanGroup(event: XiaoMingUser<*>, @FilterParameter("group") group: Long) {
-        plugin.essentialsConfig.banedGroup -= group
+        INSTANCE.essentialsConfig.banedGroup -= group
         event.sendMessage(
             """
             
@@ -128,7 +129,7 @@ class SakuraCommands : SimpleInteractors<PluginMain>() {
     ) {
         val msg = sendMessage(
             message = chat,
-            config = plugin.chatConfig
+            config = INSTANCE.chatConfig
         )
         event.sendMessage(msg.ifEmpty { "🤖 未收到回复，请稍后再试。" })
     }
@@ -141,8 +142,28 @@ class SakuraCommands : SimpleInteractors<PluginMain>() {
             event.sendMessage("参数错误：temperature 需为 0~2 的数字")
             return
         }
-        plugin.chatConfig.temperature = v
+        INSTANCE.chatConfig.temperature = v
         event.sendMessage("已更新 temperature=$v")
+    }
+
+    @Filter("/chat.set systemPrompt {r:value}")
+    @Required("sakura.command.admin.chat.set.systemPrompt")
+    fun setSystemPrompt(event: XiaoMingUser<*>, @FilterParameter("value") value: String) {
+        val v = value.trim()
+        INSTANCE.chatConfig.systemPrompt = if (v == "null") {
+            null
+        } else {
+            v
+        }
+        event.sendMessage(
+            "已更新 systemPrompt=${
+                if (v == "null") {
+                    "已清除"
+                } else {
+                    v
+                }
+            }"
+        )
     }
 
     @Filter("/chat.set topP {r:value}")
@@ -153,7 +174,7 @@ class SakuraCommands : SimpleInteractors<PluginMain>() {
             event.sendMessage("参数错误：topP 需为 0~1 的数字")
             return
         }
-        plugin.chatConfig.topP = v
+        INSTANCE.chatConfig.topP = v
         event.sendMessage("已更新 topP=$v")
     }
 
@@ -165,7 +186,7 @@ class SakuraCommands : SimpleInteractors<PluginMain>() {
             event.sendMessage("参数错误：maxTokens 需为正整数")
             return
         }
-        plugin.chatConfig.maxTokens = v
+        INSTANCE.chatConfig.maxTokens = v
         event.sendMessage("已更新 maxTokens=$v")
     }
 
@@ -177,7 +198,7 @@ class SakuraCommands : SimpleInteractors<PluginMain>() {
             event.sendMessage("参数错误：modelName 不能为空")
             return
         }
-        plugin.chatConfig.modelName = v
+        INSTANCE.chatConfig.modelName = v
         event.sendMessage("已更新 modelName=$v")
     }
 
@@ -189,7 +210,7 @@ class SakuraCommands : SimpleInteractors<PluginMain>() {
             event.sendMessage("参数错误：token 不能为空")
             return
         }
-        plugin.chatConfig.token = v
+        INSTANCE.chatConfig.token = v
         event.sendMessage("已更新 token（已隐藏）")
     }
 
@@ -200,11 +221,11 @@ class SakuraCommands : SimpleInteractors<PluginMain>() {
             event.sendMessage("参数错误：apiUrl 必须以 http:// 或 https:// 开头")
             return
         }
-        plugin.chatConfig.apiUrl = value
+        INSTANCE.chatConfig.apiUrl = value
         event.sendMessage("已更新 apiUrl=$value")
     }
 
-    val config = plugin.chatConfig
+    val config = INSTANCE.chatConfig
 
     private val client = OkHttpClient()
     private val mapper = jacksonObjectMapper()
@@ -220,7 +241,17 @@ class SakuraCommands : SimpleInteractors<PluginMain>() {
         val payload = mapOf(
             "model" to config.modelName,
             "messages" to listOf(
-                mapOf("role" to "user", "content" to message)
+                config.systemPrompt?.let {
+                    mapOf(
+                        "role" to "system",
+                        "content" to it
+                    )
+                },
+                mapOf(
+
+                    "role" to "user",
+                    "content" to message
+                )
             ),
             "temperature" to config.temperature,
             "max_tokens" to config.maxTokens,
@@ -259,7 +290,7 @@ class SakuraCommands : SimpleInteractors<PluginMain>() {
                 return
             }
         }
-        plugin.chatConfig.enableSearch = v
+        INSTANCE.chatConfig.enableSearch = v
         event.sendMessage("已更新 enableSearch=$v")
     }
 

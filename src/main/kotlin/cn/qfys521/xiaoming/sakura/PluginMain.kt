@@ -15,8 +15,10 @@ import java.io.File
 
 open class PluginMain : JavaPlugin() {
     companion object {
-        val INSTANCE = PluginMain()
+        var INSTANCE: PluginMain = PluginMain()
+            private set
     }
+
 
     private val objectMapper: ObjectMapper = ObjectMapper().registerKotlinModule()
     private lateinit var configManager: ConfigManager
@@ -43,13 +45,17 @@ open class PluginMain : JavaPlugin() {
         val chatConfigFile = File(dataFolder, "chat-config.json")
         val essentialsConfigFile = File(dataFolder, "essentials-config.json")
 
-        jrrpConfig = configManager.loadOrCreateConfig(jrrpConfigFile, JrrpConfig(), "JrrpConfig")
-        chatConfig = configManager.loadOrCreateConfig(chatConfigFile, ChatConfig(), "ChatConfig")
-        essentialsConfig =
-            configManager.loadOrCreateConfig(essentialsConfigFile, EssentialsConfig(), "EssentialsConfig")
+        try {
+            jrrpConfig = configManager.loadOrCreateConfig(jrrpConfigFile, JrrpConfig(), "JrrpConfig")
+            chatConfig = configManager.loadOrCreateConfig(chatConfigFile, ChatConfig(), "ChatConfig")
+            essentialsConfig =
+                configManager.loadOrCreateConfig(essentialsConfigFile, EssentialsConfig(), "EssentialsConfig")
+        } catch (ex: Exception) {
+            logger.error("Sakura XiaoMing Plugin load failed!", ex)
+        }
 
-        xiaoMingBot.interactorManager.registerInteractors(SakuraCommands(), this@PluginMain)
-        xiaoMingBot.eventManager.registerListeners(CommandListener(), this@PluginMain)
+        xiaoMingBot.interactorManager.registerInteractors(SakuraCommands(), INSTANCE)
+        xiaoMingBot.eventManager.registerListeners(CommandListener(), INSTANCE)
     }
 
     override fun onDisable() {

@@ -22,11 +22,20 @@ class ConfigManager(
     ): T {
         return if (!configFile.exists()) {
             logger.info("$configName file not found, creating a new one with default values.")
-            objectMapper.writeValue(configFile, defaultConfig)
+            try {
+                objectMapper.writeValue(configFile, defaultConfig)
+            } catch (ex: Exception) {
+                logger.error("Failed to create $configName file.", ex)
+            }
             defaultConfig
         } else {
             logger.info("Loading $configName from file.")
-            objectMapper.readValue(configFile)
+            try {
+                objectMapper.readValue(configFile)
+            } catch (ex: Exception) {
+                logger.error("Failed to load $configName from file, using default values.", ex)
+                defaultConfig
+            }
         }
     }
 
@@ -36,6 +45,10 @@ class ConfigManager(
      * @param config 要保存的配置实例
      */
     fun <T> saveConfig(configFile: File, config: T) {
-        objectMapper.writeValue(configFile, config)
+        try {
+            objectMapper.writeValue(configFile, config)
+        } catch (ex: Exception) {
+            logger.error("Failed to save config to file.", ex)
+        }
     }
 }
