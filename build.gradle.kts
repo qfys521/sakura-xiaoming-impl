@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "cn.qfys521"
-version = "v1.2.2"
+version = "v1.2.3"
 
 repositories {
     mavenCentral()
@@ -30,6 +30,30 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     testImplementation(kotlin("test"))
+}
+
+tasks.register("updateResourcesVersion") {
+    val path = "src/main/resources/xiaoming.json"
+    val file = file(path)
+    if (file.exists()) {
+        val lines = file.readLines().toMutableList()
+        for (i in lines.indices) {
+            if (lines[i].contains("\"version\":")) {
+                lines[i] = "  \"version\": \"${project.version}\","
+                break
+            }
+        }
+        file.writeText(lines.joinToString("\n"))
+        println("Updated version in $path to ${project.version}")
+    } else {
+        println("File $path does not exist.")
+    }
+}
+
+tasks.shadowJar {
+    doFirst {
+        tasks.named("updateResourcesVersion")
+    }
 }
 
 tasks.test {
