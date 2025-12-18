@@ -11,12 +11,10 @@ enum class OmikujiLabel(val value: Int, val text: String) {
     KYO_B(8, "凶"),
     DAIKYO_A(9, "大凶"),
     DAIKYO_B(10, "大凶"),
-    MISHO(11, "未书"),
-    NONE(12, "无记录");
+    MISHO(11, "未书");
 
     companion object {
-        @OptIn(ExperimentalStdlibApi::class)
         fun from(value: Int): OmikujiLabel =
-            entries.first { it.value == value }
+            values().firstOrNull { it.value == value } ?: MISHO
     }
 }

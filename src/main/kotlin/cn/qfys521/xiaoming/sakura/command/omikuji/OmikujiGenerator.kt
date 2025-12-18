@@ -27,8 +27,9 @@ class OmikujiGenerator(
         fun today(key: String, min: Int, max: Int): Int =
             Random(seed(key, date)).nextInt(min, max + 1)
 
+        // ensure yesterday does not produce the removed "NONE" (value 12)
         fun yesterday(key: String): Int =
-            Random(seed(key, date.minusDays(1))).nextInt(1, 13)
+            Random(seed(key, date.minusDays(1))).nextInt(1, 11 + 1)
 
         return OmikujiResult(
             health = today("dailydiv1", 1, 11),

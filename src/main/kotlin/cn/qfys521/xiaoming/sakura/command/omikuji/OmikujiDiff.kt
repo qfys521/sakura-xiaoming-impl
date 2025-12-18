@@ -1,11 +1,10 @@
 package cn.qfys521.xiaoming.sakura.command.omikuji
 
 enum class OmikujiDiff {
-    UP, DOWN, SAME, NONE;
+    UP, DOWN, SAME;
 
     companion object {
         fun compare(today: Int, yesterday: Int): OmikujiDiff {
-            if (yesterday == 12) return NONE
             return when {
                 today < yesterday -> UP
                 today > yesterday -> DOWN
