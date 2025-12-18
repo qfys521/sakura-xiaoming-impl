@@ -3,7 +3,10 @@
 package cn.qfys521.xiaoming.sakura
 
 import cn.chuanwise.xiaoming.plugin.JavaPlugin
-import cn.qfys521.xiaoming.sakura.command.SakuraCommands
+import cn.qfys521.xiaoming.sakura.command.BanCommands
+import cn.qfys521.xiaoming.sakura.command.ChatCommands
+import cn.qfys521.xiaoming.sakura.command.JrrpCommands
+import cn.qfys521.xiaoming.sakura.command.OmikujiCommands
 import cn.qfys521.xiaoming.sakura.config.ChatConfig
 import cn.qfys521.xiaoming.sakura.config.EssentialsConfig
 import cn.qfys521.xiaoming.sakura.config.JrrpConfig
@@ -54,14 +57,16 @@ open class PluginMain : JavaPlugin() {
             logger.error("Sakura XiaoMing Plugin load failed!", ex)
         }
 
-        xiaoMingBot.interactorManager.registerInteractors(SakuraCommands(), INSTANCE)
+        xiaoMingBot.interactorManager.registerInteractors(BanCommands(), INSTANCE)
+        xiaoMingBot.interactorManager.registerInteractors(ChatCommands(), INSTANCE)
+        xiaoMingBot.interactorManager.registerInteractors(JrrpCommands(), INSTANCE)
+        xiaoMingBot.interactorManager.registerInteractors(OmikujiCommands() , INSTANCE)
         xiaoMingBot.eventManager.registerListeners(CommandListener(), INSTANCE)
     }
 
     override fun onDisable() {
         super.onDisable()
         logger.info("Sakura XiaoMing Plugin disabled successfully!")
-        // 保存配置文件
         configManager.saveConfig(File(dataFolder, "jrrp-config.json"), jrrpConfig)
         configManager.saveConfig(File(dataFolder, "chat-config.json"), chatConfig)
         configManager.saveConfig(File(dataFolder, "essentials-config.json"), essentialsConfig)
