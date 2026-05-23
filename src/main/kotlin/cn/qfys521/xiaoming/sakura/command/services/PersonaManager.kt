@@ -84,6 +84,30 @@ class PersonaManager(
         saveContexts(ctx)
     }
 
+    fun addSkill(personaName: String, skillName: String): Boolean {
+        val index = loadIndex()
+        val persona = index.personas[personaName] ?: return false
+        if (skillName in persona.enabledSkills) return true
+        index.personas[personaName] = persona.copy(
+            enabledSkills = persona.enabledSkills + skillName
+        )
+        saveIndex(index)
+        logger.info("Skill '$skillName' added to persona '$personaName'")
+        return true
+    }
+
+    fun removeSkill(personaName: String, skillName: String): Boolean {
+        val index = loadIndex()
+        val persona = index.personas[personaName] ?: return false
+        if (skillName !in persona.enabledSkills) return false
+        index.personas[personaName] = persona.copy(
+            enabledSkills = persona.enabledSkills - skillName
+        )
+        saveIndex(index)
+        logger.info("Skill '$skillName' removed from persona '$personaName'")
+        return true
+    }
+
     private fun loadIndex(): PersonaIndex {
         return try {
             mapper.readValue(indexFile, PersonaIndex::class.java)

@@ -99,8 +99,40 @@ class PersonaCommands : SimpleInteractors<PluginMain>() {
             appendLine("Max History: ${persona.maxHistoryRounds} 轮")
             if (persona.enabledSkills.isNotEmpty()) {
                 appendLine("Skills: ${persona.enabledSkills.joinToString(", ")}")
+            } else {
+                appendLine("Skills: (无)")
             }
         }
         event.sendMessage(msg.trimEnd())
+    }
+
+    @Filter("/persona skill add {r:persona} {r:skill}")
+    @Required("sakura.command.admin.chat")
+    fun skillAdd(
+        event: XiaoMingUser<*>,
+        @FilterParameter("persona") personaName: String,
+        @FilterParameter("skill") skillName: String
+    ) {
+        val ok = PluginMain.INSTANCE.personaManager.addSkill(personaName, skillName)
+        if (ok) {
+            event.sendMessage("✅ Skill '$skillName' 已绑定到角色 '$personaName'")
+        } else {
+            event.sendMessage("❌ 角色 '$personaName' 不存在或 skill 已绑定")
+        }
+    }
+
+    @Filter("/persona skill remove {r:persona} {r:skill}")
+    @Required("sakura.command.admin.chat")
+    fun skillRemove(
+        event: XiaoMingUser<*>,
+        @FilterParameter("persona") personaName: String,
+        @FilterParameter("skill") skillName: String
+    ) {
+        val ok = PluginMain.INSTANCE.personaManager.removeSkill(personaName, skillName)
+        if (ok) {
+            event.sendMessage("✅ Skill '$skillName' 已从角色 '$personaName' 解绑")
+        } else {
+            event.sendMessage("❌ 角色 '$personaName' 不存在或 skill 未绑定")
+        }
     }
 }

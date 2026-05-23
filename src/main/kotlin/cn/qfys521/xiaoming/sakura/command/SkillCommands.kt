@@ -21,7 +21,8 @@ class SkillCommands : SimpleInteractors<PluginMain>() {
         }
 
         if (skill != null) {
-            event.sendMessage("✅ Skill 安装成功: ${skill.name} v${skill.version}\n${skill.description}")
+            PluginMain.INSTANCE.personaManager.addSkill("default", skill.name)
+            event.sendMessage("✅ Skill 安装成功: ${skill.name} v${skill.version}\n${skill.description}\n已自动绑定到默认角色")
         } else {
             event.sendMessage("❌ 安装失败，请检查 URL 或路径是否正确，以及仓库是否包含 skill.json")
         }
