@@ -23,7 +23,7 @@ dependencies {
     compileOnly(files("libs/xiaomingbot-20250101-210305-all.jar"))
 
     // 使用 Jackson
-    implementation("com.fasterxml.jackson.core:jackson-databind:2.19.2")
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.21.5")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.19.+")
 
     // OkHttp 用于 HTTP 调用
