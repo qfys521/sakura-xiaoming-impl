@@ -34,7 +34,60 @@ class ChatCommands : SimpleInteractors<PluginMain>() {
         val (personaName, message) = parsePersonaArg(chat, scope, id)
 
         val reply = PluginMain.INSTANCE.agentLoop.chat(message, personaName, scope, id)
-        event.sendMessage(reply.ifEmpty { "🤖 未收到回复" })
+        sendReplyWithExpiredMessageFallback(
+            event,
+            reply.ifEmpty { "\uD83E\uDD16 \u672A\u6536\u5230\u56DE\u590D" }
+        )
+    }
+
+    /**
+     * QQ Bot reply message IDs have a limited lifetime. If the AI response
+     * takes too long, retry through the proactive-message API instead.
+     */
+    private fun sendReplyWithExpiredMessageFallback(
+        event: XiaoMingUser<*>,
+        content: String
+    ) {
+        try {
+            event.sendMessage(content)
+        } catch (error: Throwable) {
+            if (!isExpiredReplyMessageError(error)) {
+                throw error
+            }
+
+            PluginMain.INSTANCE.logger.warn(
+                "Reply message expired, retrying as a proactive message",
+                error
+            )
+
+            try {
+                event.contact.sendMessage(content)
+            } catch (fallbackError: Throwable) {
+                PluginMain.INSTANCE.logger.error(
+                    "Failed to send proactive message after reply message expired",
+                    fallbackError
+                )
+                throw fallbackError
+            }
+        }
+    }
+
+    private fun isExpiredReplyMessageError(error: Throwable): Boolean {
+        var current: Throwable? = error
+        var depth = 0
+
+        while (current != null && depth++ < 8) {
+            val text = "${current::class.java.name} ${current.message.orEmpty()}".lowercase()
+            if (
+                (text.contains("msg_id") || text.contains("msgid")) &&
+                (text.contains("expired") || text.contains("\u8FC7\u671F"))
+            ) {
+                return true
+            }
+            current = current.cause
+        }
+
+        return false
     }
 
     @Filter("/chat.set temperature {r:value}")

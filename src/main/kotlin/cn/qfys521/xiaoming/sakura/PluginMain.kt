@@ -77,7 +77,7 @@ open class PluginMain : JavaPlugin() {
             logger.error("Sakura XiaoMing Plugin load failed!", ex)
         }
 
-        agentLoop = AgentLoop(chatConfig, personaManager, contextManager, skillManager, actionExecutor, logger)
+        agentLoop = AgentLoop(chatConfig, personaManager, contextManager, skillManager, actionExecutor, logger, dataFolder)
 
         xiaoMingBot.interactorManager.registerInteractors(BanCommands(), INSTANCE)
         xiaoMingBot.interactorManager.registerInteractors(ChatCommands(), INSTANCE)
@@ -89,6 +89,9 @@ open class PluginMain : JavaPlugin() {
     }
 
     override fun onDisable() {
+        if (::agentLoop.isInitialized) {
+            agentLoop.close()
+        }
         super.onDisable()
         logger.info("Sakura XiaoMing Plugin disabled successfully!")
         configManager.saveConfig(File(dataFolder, "jrrp-config.json"), jrrpConfig)

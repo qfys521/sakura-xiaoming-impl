@@ -1,16 +1,11 @@
 package cn.qfys521.xiaoming.sakura.command.services
 
 import cn.qfys521.xiaoming.sakura.config.ChatConfig
+import cn.qfys521.xiaoming.sakura.config.Conversation
 import cn.qfys521.xiaoming.sakura.config.PersonaConfig
 import cn.qfys521.xiaoming.sakura.config.SkillConfig
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import org.slf4j.Logger
 import java.io.File
-import java.util.concurrent.TimeUnit
 
 class AgentLoop(
     private val chatConfig: ChatConfig,
@@ -18,16 +13,10 @@ class AgentLoop(
     private val contextManager: ContextManager,
     private val skillManager: SkillManager,
     private val actionExecutor: ActionExecutor,
-    private val logger: Logger
-) {
-    private val client = OkHttpClient.Builder()
-        .callTimeout(300, TimeUnit.SECONDS)
-        .readTimeout(300, TimeUnit.SECONDS)
-        .writeTimeout(300, TimeUnit.SECONDS)
-        .connectTimeout(300, TimeUnit.SECONDS)
-        .build()
-    private val mapper = jacksonObjectMapper()
-    private val mediaType = "application/json".toMediaType()
+    private val logger: Logger,
+    workspace: File
+) : AutoCloseable {
+    private val codex = CodexChatService(chatConfig, workspace, logger)
 
     fun chat(
         userMessage: String,
@@ -38,7 +27,7 @@ class AgentLoop(
         val persona = personaManager.getPersona(personaName)
             ?: personaManager.getPersona("default")!!
         val enabledSkills = skillManager.getSkillsByNames(persona.enabledSkills)
-        val conv = contextManager.getConversation(personaName, scope, scopeId)
+        val conv = contextManager.getConversation(persona.name, scope, scopeId)
 
         return agentLoop(userMessage, persona, enabledSkills, conv, scope, scopeId)
     }
@@ -47,116 +36,130 @@ class AgentLoop(
         userMessage: String,
         persona: PersonaConfig,
         skills: List<SkillConfig>,
-        conv: cn.qfys521.xiaoming.sakura.config.Conversation,
+        conv: Conversation,
         scope: String,
         scopeId: String
     ): String {
-        val messages = buildMessages(userMessage, persona, skills, conv)
-        val currentMessages = messages.toMutableList()
+        val developerInstructions = buildSystemPrompt(persona, skills)
+        val model = persona.modelName ?: chatConfig.modelName
+        val thread = try {
+            codex.startThread(developerInstructions, model)
+        } catch (e: Exception) {
+            logger.error("Failed to start Codex thread", e)
+            return ""
+        }
 
+        var content = codex.run(thread, buildPrompt(userMessage, conv, persona.maxHistoryRounds))
+            ?: return ""
         var iterations = 0
         val maxIterations = 5
 
         while (iterations < maxIterations) {
-            val response = callApi(currentMessages, persona)
-            val content = response ?: return ""
-
             val actions = actionExecutor.parseActionsFromOutput(content)
-
             if (actions.isEmpty()) {
-                contextManager.addMessage(persona.name, scope, scopeId, "user", userMessage)
-                contextManager.addMessage(persona.name, scope, scopeId, "assistant", content)
+                saveConversation(persona, scope, scopeId, userMessage, content)
                 return content
             }
 
             val actionResults = mutableListOf<String>()
+            val skillActions = skills.flatMap { it.actions }
             for (action in actions) {
-                val skillActions = skills.flatMap { it.actions }
-                val result = actionExecutor.executeAction(action, skillActions, skills.firstOrNull()?.name ?: "builtin")
-
+                val result = actionExecutor.executeAction(
+                    action,
+                    skillActions,
+                    skills.firstOrNull()?.name ?: "builtin"
+                )
                 if (result.success) {
-                    actionResults.add("[${action.trigger}] result:\n${result.output}")
+                    actionResults.add("[${action.trigger}] ok:\n${result.output}")
                 } else {
-                    actionResults.add("[${action.trigger}] failed: ${result.error}")
+                    val detail = listOfNotNull(
+                        result.error.takeIf { it.isNotBlank() },
+                        result.output.takeIf { it.isNotBlank() }?.let { "output: $it" }
+                    ).joinToString("; ")
+                    actionResults.add(
+                        "[${action.trigger}] FAILED" +
+                            if (detail.isNotEmpty()) ": $detail" else ""
+                    )
                 }
             }
 
-            val feedback = "Tool output (use this to answer, do NOT output more tool commands):\n\n${actionResults.joinToString("\n\n---\n\n")}"
+            val feedback = """
+                The plugin-specific actions have completed. Use the results below to answer the user.
+                Do not output another plugin action unless it is genuinely required.
 
-            currentMessages.add(mapOf("role" to "user", "content" to feedback))
+                ${actionResults.joinToString("\n\n---\n\n")}
+            """.trimIndent()
+            content = codex.run(thread, feedback) ?: return ""
             iterations++
         }
 
-        val fallback = callApi(currentMessages, persona) ?: "too many tool iterations"
-        contextManager.addMessage(persona.name, scope, scopeId, "user", userMessage)
-        contextManager.addMessage(persona.name, scope, scopeId, "assistant", fallback)
-        return fallback
+        saveConversation(persona, scope, scopeId, userMessage, content)
+        return content
     }
 
-    private fun buildMessages(
-        userMessage: String,
+    private fun saveConversation(
         persona: PersonaConfig,
-        skills: List<SkillConfig>,
-        conv: cn.qfys521.xiaoming.sakura.config.Conversation
-    ): List<Map<String, Any?>> {
-        val messages = mutableListOf<Map<String, Any?>>()
+        scope: String,
+        scopeId: String,
+        userMessage: String,
+        assistantMessage: String
+    ) {
+        contextManager.addMessage(persona.name, scope, scopeId, "user", userMessage)
+        contextManager.addMessage(persona.name, scope, scopeId, "assistant", assistantMessage)
+    }
 
-        val systemPrompt = buildSystemPrompt(persona, skills)
-        if (systemPrompt.isNotBlank()) {
-            messages.add(mapOf("role" to "system", "content" to systemPrompt))
+    private fun buildPrompt(
+        userMessage: String,
+        conv: Conversation,
+        maxHistoryRounds: Int
+    ): String {
+        val history = contextManager.trimToRounds(conv, maxHistoryRounds)
+        return buildString {
+            if (history.isNotEmpty()) {
+                appendLine("Conversation history:")
+                history.forEach { entry ->
+                    appendLine("[${entry.role}] ${entry.content}")
+                }
+                appendLine()
+            }
+            appendLine("Current user message:")
+            append(userMessage)
         }
-
-        val history = contextManager.trimToRounds(conv, persona.maxHistoryRounds)
-        for (entry in history) {
-            messages.add(mapOf("role" to entry.role, "content" to entry.content))
-        }
-
-        messages.add(mapOf("role" to "user", "content" to userMessage))
-        return messages
     }
 
     private fun buildSystemPrompt(persona: PersonaConfig, skills: List<SkillConfig>): String {
         return buildString {
             appendLine(persona.systemPrompt)
             appendLine()
-            appendLine(buildCapabilitySection(skills))
+            appendLine(buildCapabilitySection())
             appendLine()
             appendLine(buildInjectedKnowledge(skills))
         }.trim()
     }
 
-    private fun buildCapabilitySection(skills: List<SkillConfig>): String {
+    private fun buildCapabilitySection(): String {
         return """
-## How to use tools
+            ## How to use tools
 
-When you need to perform an action, use one of these formats at the END of your response:
+            Codex native tools are available for shell commands, files, and web research. Prefer them
+            whenever they can complete the request. When you need a plugin-specific action that is not
+            covered by a native tool, put one of these formats at the END of your response:
 
-!cmd: &lt;command&gt;           - Run a shell command (dir/ls, echo, etc.)
-!python: &lt;code&gt;           - Execute Python code
-!skill: &lt;name&gt; &lt;args&gt;   - Invoke a specific skill (see your knowledge below)
-!fetch: &lt;url&gt;             - Fetch web page content
+            !cmd: <command>           - Run a shell command
+            !python: <code>           - Execute Python code
+            !skill: <name> <args>     - Invoke a configured XiaoMing skill
+            !fetch: <url>             - Fetch web page content
 
-### Useful commands
-- View directory: !cmd: dir /b   (Windows) or !cmd: ls -la
-- Read file:     !cmd: type file.txt  or !cmd: cat file.txt
-- Write file:    !python: open('path','w').write('content')
-
-### Rules
-- Only output tool commands when you genuinely need external data or to perform an action
-- Do NOT output example commands — only when actually executing
-- Place commands at the END of your response, one per line, as plain text
-- After receiving tool results, answer the user based on those results — do NOT output more tool commands
-""".trimIndent()
+            Rules:
+            - Only output plugin actions when you genuinely need them
+            - Do not output example actions
+            - After receiving action results, answer the user instead of outputting more actions
+        """.trimIndent()
     }
 
     private fun buildInjectedKnowledge(skills: List<SkillConfig>): String {
         val lines = mutableListOf<String>()
 
-        // built-in capabilities always available
-        lines.add("python-run: Execute Python code. Use !python: followed by your code.")
-        lines.add("command-run: Run shell commands. Use !cmd: followed by the command.")
-
-        // injected skill knowledge
         for (skill in skills) {
             val prompt = readSkillSummary(skill)
             if (prompt != null) {
@@ -165,63 +168,50 @@ When you need to perform an action, use one of these formats at the END of your 
         }
 
         if (lines.isEmpty()) return ""
-        return lines.joinToString("\n\n")
+        return "## Configured XiaoMing skills\n\n" + lines.joinToString("\n\n")
     }
 
     private fun readSkillSummary(skill: SkillConfig): String? {
-        val skillDir = File(skillsDir(), skill.name)
+        val skillDir = File(skillManager.skillsDir, skill.name)
         val skillMd = File(skillDir, "SKILL.md")
         val promptFile = if (skillMd.exists()) skillMd else File(skillDir, "prompt.md")
         if (!promptFile.exists()) return skill.description.takeIf { it.isNotBlank() }
 
         val raw = promptFile.readText()
-        // extract the essence — first meaningful paragraph or description line
-        val cleaned = raw
-            .removePrefix("---")
+        val body = if (raw.startsWith("---")) {
+            val second = raw.indexOf("---", 3)
+            if (second >= 0) raw.substring(second + 3) else raw
+        } else raw
+
+        val cleaned = body
             .lines()
-            .filter { it.isNotBlank() && !it.startsWith("#") && !it.startsWith("---") }
+            .filter { line ->
+                val text = line.trim()
+                text.isNotBlank()
+                    && !text.startsWith("#")
+                    && !text.startsWith("---")
+                    && !text.startsWith("license:")
+                    && !text.startsWith("github:")
+                    && !text.startsWith("name:")
+                    && !text.startsWith("metadata:")
+                    && !text.startsWith("author:")
+                    && !text.startsWith("version:")
+            }
             .joinToString(" ")
 
-        return cleaned.take(800).ifBlank { skill.description }
-    }
-
-    private fun callApi(messages: List<Map<String, Any?>>, persona: PersonaConfig): String? {
-        val model = persona.modelName ?: chatConfig.modelName
-        val temperature = persona.temperature ?: chatConfig.temperature
-        val maxTokens = persona.maxTokens ?: chatConfig.maxTokens
-        val topP = persona.topP ?: chatConfig.topP
-
-        val payload = mapOf(
-            "model" to model,
-            "messages" to messages,
-            "temperature" to temperature,
-            "max_tokens" to maxTokens,
-            "top_p" to topP
+        val claudePatterns = listOf(
+            "CLAUDE_SKILL_DIR", "cdp-proxy", "check-deps", "/eval",
+            "/click", "/scroll", "/screenshot", "WebSearch", "WebFetch"
         )
+        val isClaudeSkill = claudePatterns.any { cleaned.contains(it) }
+        val summary = cleaned.take(800).ifBlank { skill.description }
 
-        val body = mapper.writeValueAsString(payload).toRequestBody(mediaType)
-        val request = Request.Builder()
-            .url("${chatConfig.apiUrl}/chat/completions")
-            .addHeader("Authorization", "Bearer ${chatConfig.token}")
-            .addHeader("Content-Type", "application/json")
-            .post(body)
-            .build()
-
-        return try {
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    logger.error("API call failed: ${response.code}")
-                    return null
-                }
-                val json = response.body?.string() ?: return null
-                val root = mapper.readTree(json)
-                root["choices"]?.get(0)?.get("message")?.get("content")?.asText()
-            }
-        } catch (e: Exception) {
-            logger.error("API call error", e)
-            null
-        }
+        return if (isClaudeSkill) {
+            "$summary\n\nNote: this skill was written for a different platform. Use the configured XiaoMing actions or Codex native tools for equivalent operations."
+        } else summary
     }
 
-    private fun skillsDir(): File = skillManager.skillsDir
+    override fun close() {
+        codex.close()
+    }
 }

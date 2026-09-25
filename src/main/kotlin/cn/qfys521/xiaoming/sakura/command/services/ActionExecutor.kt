@@ -57,6 +57,12 @@ class ActionExecutor(
             results.add(ParsedAction("skill:$skillName", args))
         }
 
+        // !fetch: block
+        val fetchRegex = Regex("""!fetch:\s*(.+?)(?=!\w+:|$)""", setOf(RegexOption.DOT_MATCHES_ALL))
+        for (m in fetchRegex.findAll(cleaned)) {
+            results.add(ParsedAction("fetch", m.groupValues[1].trim()))
+        }
+
         // fallback: legacy <tag> format for backward compat
         val tagRegex = Regex("<(\\w+)>(.*?)</\\1>", setOf(RegexOption.DOT_MATCHES_ALL))
         for (m in tagRegex.findAll(cleaned)) {
@@ -74,6 +80,7 @@ class ActionExecutor(
         return when {
             action.trigger == "cmd" -> execCmd(action.args)
             action.trigger == "python" -> execPython(action.args, skillName)
+            action.trigger == "fetch" -> execFetch(action.args)
             action.trigger.startsWith("skill:") -> {
                 val name = action.trigger.removePrefix("skill:")
                 execSkill(name, action.args, skillActions)

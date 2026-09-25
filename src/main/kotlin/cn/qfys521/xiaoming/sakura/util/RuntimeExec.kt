@@ -60,7 +60,12 @@ object RuntimeExec {
             }
 
             val stdout = proc.inputStream.bufferedReader().readText()
-            ExecResult(proc.exitValue() == 0, stdout.take(4000), proc.exitValue())
+            val exitCode = proc.exitValue()
+            if (exitCode == 0) {
+                ExecResult(true, stdout.take(4000), exitCode)
+            } else {
+                ExecResult(false, stdout.take(4000), exitCode, "exit code $exitCode")
+            }
         } catch (e: Exception) {
             ExecResult(false, "", -1, e.message ?: "Unknown error")
         }
@@ -81,7 +86,12 @@ object RuntimeExec {
             }
 
             val stdout = proc.inputStream.bufferedReader().readText()
-            ExecResult(proc.exitValue() == 0, stdout.take(4000), proc.exitValue())
+            val exitCode = proc.exitValue()
+            if (exitCode == 0) {
+                ExecResult(true, stdout.take(4000), exitCode)
+            } else {
+                ExecResult(false, stdout.take(4000), exitCode, "exit code $exitCode")
+            }
         } catch (e: Exception) {
             ExecResult(false, "", -1, e.message ?: "Unknown error")
         }
